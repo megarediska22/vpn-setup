@@ -1,87 +1,72 @@
-# VPN Setup: VLESS + REALITY (sing-box)
+# OpenVPN Auto-Setup
 
-Быстрая настройка защищённого VPN на чистом VPS.
+One-command VPN setup for VPS. Works with Tunnelblick (macOS), OpenVPN Connect (Android/iOS/Windows).
 
-## Что делает скрипт
-
-1. Обновляет систему (Ubuntu/Debian)
-2. Устанавливает последнюю версию sing-box
-3. Настраивает VLESS + REALITY (маскировка трафика под обычный HTTPS)
-4. Оптимизирует сетевые параметры (BBR, fastopen)
-5. Создаёт systemd-сервис с автообновлением
-6. Генерирует клиентские конфиги для macOS и Android
-
-## Использование
+## Quick Start
 
 ```bash
-# SSH на VPS и запуск
-ssh root@YOUR_IP
-curl -sL https://raw.githubusercontent.com/.../setup.sh -o setup.sh
-bash setup.sh --ip YOUR_IP
-
-# Или с доменом (рекомендуется)
-bash setup.sh --domain your-domain.com
+ssh root@YOUR_VPS_IP
+curl -sL https://raw.githubusercontent.com/megarediska22/vpn-setup/main/setup.sh | sudo bash
 ```
 
-## После запуска скрипт покажет
+## What It Does
 
-- IP и порт сервера
-- UUID для подключения
-- Reality Public Key
-- Short ID
-- VLESS URL для импорта в клиент
+1. Updates system (Ubuntu/Debian)
+2. Installs OpenVPN + easy-rsa
+3. Generates all certificates (CA, server, client, DH, TLS-auth)
+4. Configures server with AES-256-GCM + SHA256
+5. Enables IP forwarding + NAT masquerading
+6. Configures firewall (UFW)
+7. Creates ready-to-use `client.ovpn` file
 
-## Подключение клиентов
+## Connecting
 
-### macOS
-1. Установить [Hiddify](https://apps.apple.com/app/hiddify-proxy-vpn/id6596777532) или NekoRay
-2. Нажать + → Вставить из буфера обмена (VLESS URL)
-3. Подключиться
+### macOS (Tunnelblick)
+```bash
+brew install --cask tunnelblick
+scp root@YOUR_IP:/root/vpn-client/client.ovpn ~/Downloads/
+# Open client.ovpn → Tunnelblick imports it → Click Connect
+```
 
-### Android / Samsung
-1. Установить [Hiddify](https://play.google.com/store/apps/details?id=io.hiddify.android) или NekoBox
-2. Нажать + → Вставить из буфера
-3. VLESS URL автоматически распознается
-4. Подключиться
+### Android / Samsung (OpenVPN Connect)
+1. Install OpenVPN Connect from Google Play
+2. Transfer `client.ovpn` to your phone
+3. OpenVPN Connect → File → Import → select file → Connect
 
-## Файлы на сервере
+### Windows
+1. Install OpenVPN from openvpn.net
+2. Copy `client.ovpn` to `C:\Program Files\OpenVPN\config\`
+3. Right-click OpenVPN tray → Connect
 
-| Файл | Описание |
-|------|----------|
-| `/etc/sing-box/config.json` | Конфигурация sing-box |
-| `/usr/local/bin/sing-box-updater.sh` | Скрипт автообновления |
-| `/root/vpn-clients/` | Клиентские конфиги |
-
-## Управление
+## Server Management
 
 ```bash
-systemctl status sing-box      # Статус
-systemctl restart sing-box     # Перезапуск
-journalctl -u sing-box -f      # Логи
-sing-box check -c /etc/sing-box/config.json  # Проверка конфига
+systemctl status openvpn@server      # Status
+journalctl -u openvpn@server -f      # Live logs
+systemctl restart openvpn@server     # Restart
+cat /var/log/openvpn-status.log      # Connected clients
 ```
 
-## Добавление клиента
+## Adding More Clients
 
 ```bash
-# Новый UUID
-sing-box generate uuid
-
-# Добавить в /etc/sing-box/config.json → inbounds[0].users
-# Перезапустить
-systemctl restart sing-box
+cd /etc/openvpn/easy-rsa
+./easyrsa --batch build-client-full client2 nopass
 ```
 
-## Автообновление
+Then regenerate `client.ovpn` or create a new one with the new client cert.
 
-Проверка обновлений sing-box каждую неделю через systemd timer.
+## Protocol
 
-```bash
-systemctl list-timers sing-box-update*  # Проверить расписание
-```
+- Port: 1194/UDP
+- Cipher: AES-256-GCM
+- Auth: SHA256
+- TLS-Auth: Yes (key-direction 1)
+- Full tunnel: All traffic routed through VPN
+- DNS: 8.8.8.8, 1.1.1.1
 
-## Требования
+## Requirements
 
-- Ubuntu 20.04/22.04/24.04 или Debian 11/12
-- Минимум 512MB RAM
-- Порт 443 (или другой) должен быть открыт
+- Ubuntu 20.04/22.04/24.04 or Debian 11/12
+- Root access
+- UDP port 1194 open
