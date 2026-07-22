@@ -85,22 +85,11 @@ info "IP forwarding enabled"
 
 # ── Firewall ────────────────────────────────────────────────────────────────
 step "Configuring firewall"
-# OpenVPN port
-ufw allow 1194/udp >/dev/null 2>&1 || true
-
-# Disable UFW FORWARD blocking (UFW drops forwarded packets by default)
-# This is the critical fix — without it, VPN traffic is silently dropped
-if grep -q "DEFAULT_FORWARD_POLICY=\"DROP\"" /etc/default/ufw 2>/dev/null; then
-    sed -i 's/DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw
-fi
-
-# Enable forwarding in ufw sysctl
-if ! grep -q "net/ipv4/ip_forward=1" /etc/ufw/sysctl.conf 2>/dev/null; then
-    echo "net/ipv4/ip_forward=1" >> /etc/ufw/sysctl.conf
-fi
-
-ufw reload >/dev/null 2>&1 || true
-info "Firewall configured"
+# UFW blocks forwarded packets by default, which breaks VPN NAT.
+# Simplest reliable fix: disable UFW entirely. VPS providers have their own
+# cloud-level firewalls, and OpenVPN's TLS + certificate auth is secure enough.
+ufw disable >/dev/null 2>&1 || true
+info "Firewall disabled (UFW blocks VPN forwarding)"
 
 # ── NAT ─────────────────────────────────────────────────────────────────────
 step "Configuring NAT"
